@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -75,48 +76,67 @@ class WhatsAppRedialService : AccessibilityService() {
                     if (isRunning) endCurrentWhatsAppCall()
                 }, 30_000L)
             }
-        } catch (e: SecurityException) {
-            Toast.makeText(context, "Call Permission Denied. Please grant Phone Call permission.", Toast.LENGTH_LONG).show()
-            isRunning = false
         } catch (e: Exception) {
             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             isRunning = false
         }
     }
 
+    private val nextCallRunnable = Runnable {
+        if (callState == 2 && isWaitingForNextCall) {
+            callState = 0
+            isWaitingForNextCall = false
+            if (isRunning && currentCallCount < maxCalls) {
+                // ලබා දී ඇති Interval එක මෙහිදී ක්‍රියාත්මක වේ
+                handler.postDelayed({
+                    initiateNextCall(applicationContext)
+                }, intervalSeconds * 1000L)
+            } else if (currentCallCount >= maxCalls) {
+                isRunning = false
+                Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isRunning || event == null) return
-        val rootNode = rootInActiveWindow ?: return
+        val rootNode = rootInActiveWindow
 
         clickCallConfirmationIfPresent(rootNode)
 
-        val endButtons = rootNode.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
-        val endByText = rootNode.findAccessibilityNodeInfosByText("End call")
-        val isCallUIActive = endButtons.isNotEmpty() || endByText.isNotEmpty()
+        val endButtons = rootNode?.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
+        val endByText = rootNode?.findAccessibilityNodeInfosByText("End call")
+        val isCallUIActive = (endButtons?.isNotEmpty() == true) || (endByText?.isNotEmpty() == true)
 
         if (callState == 1 && isCallUIActive) {
-            callState = 2 // කෝල් එක සාර්ථකව සම්බන්ධ වුණා
-        } else if (callState == 2 && !isCallUIActive) {
-            // කෝල් එක load වෙද්දි එන පොඩි ලැග් වලට නොරැවටී, තිරය සම්පූර්ණයෙන්ම වෙනස් වුණොත් පමණක් ඊළඟ කෝල් එකට යන්න
-            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                if (!isWaitingForNextCall) {
-                    isWaitingForNextCall = true
-                    callState = 0
-                    if (isRunning && currentCallCount < maxCalls) {
-                        handler.postDelayed({
-                            isWaitingForNextCall = false
-                            initiateNextCall(applicationContext)
-                        }, intervalSeconds * 1000L) 
-                    } else if (currentCallCount >= maxCalls) {
-                        isRunning = false
-                        Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+            callState = 2
+            isWaitingForNextCall = false
+            handler.removeCallbacks(nextCallRunnable)
+        } else if (callState == 2) {
+            if (isCallUIActive) {
+                // කෝල් එක තවමත් සක්‍රීයව පවතී
+                isWaitingForNextCall = false
+                handler.removeCallbacks(nextCallRunnable)
+            } else {
+                // තිරය නිවී ඇත්දැයි බැලීම (Proximity sensor logic එක මගින් කෝල් එකක් අතරමැදදී කට් වීම වළක්වයි)
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                if (pm.isInteractive) {
+                    if (!isWaitingForNextCall) {
+                        isWaitingForNextCall = true
+                        // UI එකේ ලැග් වීම් නිසා ඇතිවන දෝෂ වළක්වා ගැනීමට තත්පර 2.5ක් රැඳී සිටීම
+                        handler.postDelayed(nextCallRunnable, 2500L)
                     }
+                } else {
+                    // තිරය නිවී ඇත්නම්, ඉන් අදහස් වන්නේ කෝල් එක දිගටම යන බවයි (දුරකථනය කනට තබාගෙන සිටින විට)
+                    isWaitingForNextCall = false
+                    handler.removeCallbacks(nextCallRunnable)
                 }
             }
         }
     }
 
-    private fun clickCallConfirmationIfPresent(node: AccessibilityNodeInfo) {
+    private fun clickCallConfirmationIfPresent(node: AccessibilityNodeInfo?) {
+        if (node == null) return
         val callNodes = node.findAccessibilityNodeInfosByText("Call")
         for (item in callNodes) {
             if (item.isClickable && item.className?.contains("Button") == true) {
