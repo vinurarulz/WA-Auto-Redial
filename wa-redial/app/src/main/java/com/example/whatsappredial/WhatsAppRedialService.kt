@@ -59,8 +59,10 @@ class WhatsAppRedialService : AccessibilityService() {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "vnd.android.cursor.item/vnd.com.whatsapp.voip.call")
-                setPackage("com.whatsapp")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Error එක මඟහරවා ගැනීමට අවශ්‍ය අවසරය ලබා දීම
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) 
+                // Android 11+ Permission Denial error එක එන නිසා setPackage("com.whatsapp") ඉවත් කර ඇත
             }
             context.startActivity(intent)
 
@@ -70,7 +72,7 @@ class WhatsAppRedialService : AccessibilityService() {
                 }, 30_000L)
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             isRunning = false
         }
     }
