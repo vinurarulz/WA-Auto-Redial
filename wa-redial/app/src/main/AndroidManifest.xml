@@ -5,6 +5,11 @@
 
     <queries>
         <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android.cursor.item/vnd.com.whatsapp.voip.call" />
+        </intent>
     </queries>
 
     <application

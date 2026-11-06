@@ -51,7 +51,7 @@ class WhatsAppRedialService : AccessibilityService() {
         if (!isRunning || contactDataId == -1L) return
         if (currentCallCount >= maxCalls) {
             isRunning = false
-            Toast.makeText(context, "Auto Redial Completed", Toast.LENGTH_SHORT).show()
+            showFullError(context, "Auto Redial Completed")
             return
         }
 
@@ -61,10 +61,10 @@ class WhatsAppRedialService : AccessibilityService() {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "vnd.android.cursor.item/vnd.com.whatsapp.voip.call")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
-            // SHAREit වෙත යොමුවීම සහ Permission Denial දෝෂය යන දෙකම එකවර මඟහරවා ගැනීම සඳහා 
-            // සිස්ටම් එක හරහා WhatsApp හි නිවැරදි Activity (Component) එකම සොයාගැනීම.
+            // SHAREit මඟහැරීම සඳහා WhatsApp හි නිවැරදි Component එක සොයාගැනීම
             val resolveInfoList = context.packageManager.queryIntentActivities(intent, 0)
             var targetComponent: ComponentName? = null
             
@@ -89,10 +89,18 @@ class WhatsAppRedialService : AccessibilityService() {
                     if (isRunning) endCurrentWhatsAppCall()
                 }, 30_000L)
             }
+        } catch (e: SecurityException) {
+            showFullError(context, "Permission Denial Error: ${e.message}")
+            isRunning = false
         } catch (e: Exception) {
-            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+            showFullError(context, "Error: ${e.message}")
             isRunning = false
         }
+    }
+
+    // Error එක සම්පූර්ණයෙන් පෙන්වීම සඳහා Toast එකේ කාලය වැඩිකර ඇත
+    private fun showFullError(context: Context, message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
