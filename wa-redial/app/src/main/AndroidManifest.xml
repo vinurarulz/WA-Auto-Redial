@@ -2,14 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:mimeType="vnd.android.cursor.item/vnd.com.whatsapp.voip.call" />
-        </intent>
     </queries>
 
     <application

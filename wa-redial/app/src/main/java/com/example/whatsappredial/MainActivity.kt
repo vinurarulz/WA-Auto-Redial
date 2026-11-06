@@ -50,8 +50,10 @@ class MainActivity : AppCompatActivity() {
         })
 
         btnPickContact.setOnClickListener {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS), 101)
+            val perms = arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, perms, 101)
             } else {
                 showWhatsAppContactsDialog(tvSelectedContact)
             }

@@ -1,7 +1,6 @@
 package com.example.whatsappredial
 
 import android.accessibilityservice.AccessibilityService
-import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
@@ -51,7 +50,7 @@ class WhatsAppRedialService : AccessibilityService() {
         if (!isRunning || contactDataId == -1L) return
         if (currentCallCount >= maxCalls) {
             isRunning = false
-            showFullError(context, "Auto Redial Completed")
+            Toast.makeText(context, "Auto Redial Completed", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -60,28 +59,11 @@ class WhatsAppRedialService : AccessibilityService() {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "vnd.android.cursor.item/vnd.com.whatsapp.voip.call")
+                setPackage("com.whatsapp")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-
-            // SHAREit මඟහැරීම සඳහා WhatsApp හි නිවැරදි Component එක සොයාගැනීම
-            val resolveInfoList = context.packageManager.queryIntentActivities(intent, 0)
-            var targetComponent: ComponentName? = null
             
-            for (info in resolveInfoList) {
-                val pkg = info.activityInfo.packageName
-                if (pkg == "com.whatsapp" || pkg == "com.whatsapp.w4b") {
-                    targetComponent = ComponentName(pkg, info.activityInfo.name)
-                    break
-                }
-            }
-            
-            if (targetComponent != null) {
-                intent.component = targetComponent
-            } else {
-                intent.setPackage("com.whatsapp")
-            }
-
             context.startActivity(intent)
 
             if (limitDuration) {
@@ -90,17 +72,12 @@ class WhatsAppRedialService : AccessibilityService() {
                 }, 30_000L)
             }
         } catch (e: SecurityException) {
-            showFullError(context, "Permission Denial Error: ${e.message}")
+            Toast.makeText(context, "Call Permission Denied. Please grant Phone Call permission to the app in Settings.", Toast.LENGTH_LONG).show()
             isRunning = false
         } catch (e: Exception) {
-            showFullError(context, "Error: ${e.message}")
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             isRunning = false
         }
-    }
-
-    // Error එක සම්පූර්ණයෙන් පෙන්වීම සඳහා Toast එකේ කාලය වැඩිකර ඇත
-    private fun showFullError(context: Context, message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
