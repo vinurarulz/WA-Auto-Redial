@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -102,14 +104,46 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val labels = contacts.map { "${it.name} (${it.number})" }.toTypedArray()
-        AlertDialog.Builder(this)
+        val container = LinearLayout(this)
+        container.orientation = LinearLayout.VERTICAL
+        container.setPadding(40, 20, 40, 20)
+
+        val searchBox = EditText(this)
+        searchBox.hint = "Search contact name..."
+        searchBox.setSingleLine()
+        
+        val listView = ListView(this)
+        
+        container.addView(searchBox)
+        container.addView(listView)
+
+        val labels = contacts.map { "${it.name} (${it.number})" }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
+        listView.adapter = adapter
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Select WhatsApp Contact")
-            .setItems(labels) { _, which ->
-                selectedContact = contacts[which]
-                tvSelectedContact.text = "${contacts[which].name} (${contacts[which].number})"
-            }
+            .setView(container)
+            .setNegativeButton("Cancel", null)
             .show()
+
+        searchBox.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {}
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                adapter.filter.filter(s)
+            }
+        })
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val selectedString = adapter.getItem(position)
+            val selected = contacts.find { "${it.name} (${it.number})" == selectedString }
+            if (selected != null) {
+                selectedContact = selected
+                tvSelectedContact.text = selectedString
+            }
+            dialog.dismiss()
+        }
     }
 
     private fun isAccessibilityEnabled(): Boolean {

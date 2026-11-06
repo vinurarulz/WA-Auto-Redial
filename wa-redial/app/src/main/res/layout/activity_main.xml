@@ -43,6 +43,7 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <!-- මෙහි Text Color එක කලු (#000000) කර ඇත -->
                 <TextView
                     android:id="@+id/tvSelectedContact"
                     android:layout_width="0dp"
@@ -51,8 +52,8 @@
                     android:background="@android:drawable/editbox_background_normal"
                     android:hint="Select WhatsApp Contact"
                     android:padding="12dp"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#8E8E93"
+                    android:textColor="#000000"
+                    android:textColorHint="#555555"
                     android:textSize="16sp" />
 
                 <Button
