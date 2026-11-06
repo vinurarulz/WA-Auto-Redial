@@ -1,6 +1,7 @@
 package com.example.whatsappredial
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
@@ -60,10 +61,27 @@ class WhatsAppRedialService : AccessibilityService() {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "vnd.android.cursor.item/vnd.com.whatsapp.voip.call")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                // Error එක මඟහරවා ගැනීමට අවශ්‍ය අවසරය ලබා දීම
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) 
-                // Android 11+ Permission Denial error එක එන නිසා setPackage("com.whatsapp") ඉවත් කර ඇත
             }
+
+            // SHAREit වෙත යොමුවීම සහ Permission Denial දෝෂය යන දෙකම එකවර මඟහරවා ගැනීම සඳහා 
+            // සිස්ටම් එක හරහා WhatsApp හි නිවැරදි Activity (Component) එකම සොයාගැනීම.
+            val resolveInfoList = context.packageManager.queryIntentActivities(intent, 0)
+            var targetComponent: ComponentName? = null
+            
+            for (info in resolveInfoList) {
+                val pkg = info.activityInfo.packageName
+                if (pkg == "com.whatsapp" || pkg == "com.whatsapp.w4b") {
+                    targetComponent = ComponentName(pkg, info.activityInfo.name)
+                    break
+                }
+            }
+            
+            if (targetComponent != null) {
+                intent.component = targetComponent
+            } else {
+                intent.setPackage("com.whatsapp")
+            }
+
             context.startActivity(intent)
 
             if (limitDuration) {
