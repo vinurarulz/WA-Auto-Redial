@@ -30,6 +30,7 @@ class WhatsAppRedialService : AccessibilityService() {
             currentCallCount = 0
             isRunning = true
             instance?.callState = 0
+            instance?.isWaitingForNextCall = false
             instance?.initiateNextCall(context)
         }
 
@@ -40,7 +41,8 @@ class WhatsAppRedialService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    var callState = 0 // 0: Idle (නිකම් ඉන්නවා), 1: Initiated (කෝල් එක ගත්තා), 2: Call active on screen (කෝල් එක තිරයේ තියෙනවා)
+    var callState = 0 
+    var isWaitingForNextCall = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -56,7 +58,7 @@ class WhatsAppRedialService : AccessibilityService() {
         }
 
         currentCallCount++
-        callState = 1 // කෝල් එක ගන්න පටන් ගත්තා කියලා මාර්ක් කිරීම
+        callState = 1 
         try {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -88,24 +90,25 @@ class WhatsAppRedialService : AccessibilityService() {
 
         clickCallConfirmationIfPresent(rootNode)
 
-        // කෝල් එකේ තත්ත්වය බැලීමට රතු පාට End call බටන් එක තිරයේ තියෙනවද යන්න සෙවීම
         val endButtons = rootNode.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
         val endByText = rootNode.findAccessibilityNodeInfosByText("End call")
         val isCallUIActive = endButtons.isNotEmpty() || endByText.isNotEmpty()
 
         if (callState == 1 && isCallUIActive) {
-            // කෝල් එක තිරයට ආවා (රින්ග් වීම ආරම්භ වුණා)
             callState = 2
         } else if (callState == 2 && !isCallUIActive) {
-            // කෝල් තිරය නැති වුණා (කෝල් එක කට් වුණා හෝ ඉවර වුණා)
-            callState = 0
-            if (isRunning && currentCallCount < maxCalls) {
-                handler.postDelayed({
-                    initiateNextCall(applicationContext)
-                }, intervalSeconds * 1000L) // දී ඇති තත්පර ගණනක් සිට ඊළඟ කෝල් එක ගැනීම
-            } else if (currentCallCount >= maxCalls) {
-                isRunning = false
-                Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+            if (!isWaitingForNextCall) {
+                isWaitingForNextCall = true
+                callState = 0
+                if (isRunning && currentCallCount < maxCalls) {
+                    handler.postDelayed({
+                        isWaitingForNextCall = false
+                        initiateNextCall(applicationContext)
+                    }, intervalSeconds * 1000L) 
+                } else if (currentCallCount >= maxCalls) {
+                    isRunning = false
+                    Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
