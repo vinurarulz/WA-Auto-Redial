@@ -29,6 +29,7 @@ class WhatsAppRedialService : AccessibilityService() {
             limitDuration = durationLimit
             currentCallCount = 0
             isRunning = true
+            instance?.callState = 0
             instance?.initiateNextCall(context)
         }
 
@@ -39,7 +40,7 @@ class WhatsAppRedialService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    private var inWhatsAppCallScreen = false
+    var callState = 0 // 0: Idle (නිකම් ඉන්නවා), 1: Initiated (කෝල් එක ගත්තා), 2: Call active on screen (කෝල් එක තිරයේ තියෙනවා)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -55,6 +56,7 @@ class WhatsAppRedialService : AccessibilityService() {
         }
 
         currentCallCount++
+        callState = 1 // කෝල් එක ගන්න පටන් ගත්තා කියලා මාර්ක් කිරීම
         try {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -72,7 +74,7 @@ class WhatsAppRedialService : AccessibilityService() {
                 }, 30_000L)
             }
         } catch (e: SecurityException) {
-            Toast.makeText(context, "Call Permission Denied. Please grant Phone Call permission to the app in Settings.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Call Permission Denied. Please grant Phone Call permission.", Toast.LENGTH_LONG).show()
             isRunning = false
         } catch (e: Exception) {
             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -82,21 +84,28 @@ class WhatsAppRedialService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isRunning || event == null) return
-        val className = event.className?.toString() ?: ""
         val rootNode = rootInActiveWindow ?: return
 
         clickCallConfirmationIfPresent(rootNode)
 
-        if (className.contains("VoipActivity") || className.contains("Call")) {
-            inWhatsAppCallScreen = true
-        } else if (inWhatsAppCallScreen && event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            inWhatsAppCallScreen = false
+        // කෝල් එකේ තත්ත්වය බැලීමට රතු පාට End call බටන් එක තිරයේ තියෙනවද යන්න සෙවීම
+        val endButtons = rootNode.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
+        val endByText = rootNode.findAccessibilityNodeInfosByText("End call")
+        val isCallUIActive = endButtons.isNotEmpty() || endByText.isNotEmpty()
+
+        if (callState == 1 && isCallUIActive) {
+            // කෝල් එක තිරයට ආවා (රින්ග් වීම ආරම්භ වුණා)
+            callState = 2
+        } else if (callState == 2 && !isCallUIActive) {
+            // කෝල් තිරය නැති වුණා (කෝල් එක කට් වුණා හෝ ඉවර වුණා)
+            callState = 0
             if (isRunning && currentCallCount < maxCalls) {
                 handler.postDelayed({
                     initiateNextCall(applicationContext)
-                }, intervalSeconds * 1000L)
+                }, intervalSeconds * 1000L) // දී ඇති තත්පර ගණනක් සිට ඊළඟ කෝල් එක ගැනීම
             } else if (currentCallCount >= maxCalls) {
                 isRunning = false
+                Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
             }
         }
     }
