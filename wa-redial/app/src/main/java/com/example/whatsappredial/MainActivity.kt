@@ -82,12 +82,6 @@ class MainActivity : AppCompatActivity() {
                     intervalSec = seekInterval.progress.coerceAtLeast(1),
                     durationLimit = switchCallDuration.isChecked
                 )
-
-                // Auto-Minimize කිරීම සඳහා කේතය
-                val homeIntent = Intent(Intent.ACTION_MAIN)
-                homeIntent.addCategory(Intent.CATEGORY_HOME)
-                homeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(homeIntent)
             }
         }
     }

@@ -95,19 +95,22 @@ class WhatsAppRedialService : AccessibilityService() {
         val isCallUIActive = endButtons.isNotEmpty() || endByText.isNotEmpty()
 
         if (callState == 1 && isCallUIActive) {
-            callState = 2
+            callState = 2 // කෝල් එක සාර්ථකව සම්බන්ධ වුණා
         } else if (callState == 2 && !isCallUIActive) {
-            if (!isWaitingForNextCall) {
-                isWaitingForNextCall = true
-                callState = 0
-                if (isRunning && currentCallCount < maxCalls) {
-                    handler.postDelayed({
-                        isWaitingForNextCall = false
-                        initiateNextCall(applicationContext)
-                    }, intervalSeconds * 1000L) 
-                } else if (currentCallCount >= maxCalls) {
-                    isRunning = false
-                    Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+            // කෝල් එක load වෙද්දි එන පොඩි ලැග් වලට නොරැවටී, තිරය සම්පූර්ණයෙන්ම වෙනස් වුණොත් පමණක් ඊළඟ කෝල් එකට යන්න
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                if (!isWaitingForNextCall) {
+                    isWaitingForNextCall = true
+                    callState = 0
+                    if (isRunning && currentCallCount < maxCalls) {
+                        handler.postDelayed({
+                            isWaitingForNextCall = false
+                            initiateNextCall(applicationContext)
+                        }, intervalSeconds * 1000L) 
+                    } else if (currentCallCount >= maxCalls) {
+                        isRunning = false
+                        Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
