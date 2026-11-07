@@ -19,6 +19,7 @@ data class WhatsAppContact(val dataId: Long, val name: String, val number: Strin
 class MainActivity : AppCompatActivity() {
 
     private var selectedContact: WhatsAppContact? = null
+    private lateinit var btnStartStop: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,12 +27,17 @@ class MainActivity : AppCompatActivity() {
 
         val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
         val btnPickContact = findViewById<Button>(R.id.btnPickContact)
-        val btnStartStop = findViewById<Button>(R.id.btnStartStop)
+        btnStartStop = findViewById(R.id.btnStartStop)
         val switchCallDuration = findViewById<Switch>(R.id.switchCallDuration)
         val tvNumCallsLabel = findViewById<TextView>(R.id.tvNumCallsLabel)
         val seekNumCalls = findViewById<SeekBar>(R.id.seekNumCalls)
         val tvIntervalLabel = findViewById<TextView>(R.id.tvIntervalLabel)
         val seekInterval = findViewById<SeekBar>(R.id.seekInterval)
+
+        if (seekNumCalls.progress == 0) {
+            seekNumCalls.progress = 10
+            tvNumCallsLabel.text = "Number of calls: 10"
+        }
 
         seekNumCalls.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -61,8 +67,7 @@ class MainActivity : AppCompatActivity() {
 
         btnStartStop.setOnClickListener {
             if (WhatsAppRedialService.isRunning) {
-                WhatsAppRedialService.stopRedial()
-                btnStartStop.text = "START"
+                WhatsAppRedialService.stopRedial(this)
             } else {
                 val contact = selectedContact
                 if (contact == null) {
@@ -84,6 +89,17 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+
+        WhatsAppRedialService.onStateChanged = { isRunning ->
+            runOnUiThread {
+                btnStartStop.text = if (isRunning) "STOP" else "START"
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        btnStartStop.text = if (WhatsAppRedialService.isRunning) "STOP" else "START"
     }
 
     private fun showWhatsAppContactsDialog(tvSelectedContact: TextView) {

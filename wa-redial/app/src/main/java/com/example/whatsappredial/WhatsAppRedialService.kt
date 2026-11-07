@@ -22,6 +22,8 @@ class WhatsAppRedialService : AccessibilityService() {
         var intervalSeconds: Int = 1
         var limitDuration: Boolean = false
         private var instance: WhatsAppRedialService? = null
+        
+        var onStateChanged: ((Boolean) -> Unit)? = null
 
         fun startRedial(context: Context, dataId: Long, totalCalls: Int, intervalSec: Int, durationLimit: Boolean) {
             contactDataId = dataId
@@ -31,17 +33,22 @@ class WhatsAppRedialService : AccessibilityService() {
             currentCallCount = 0
             isRunning = true
             instance?.callState = 0
+            onStateChanged?.invoke(true)
             instance?.initiateNextCall(context)
         }
 
-        fun stopRedial() {
+        fun stopRedial(context: Context? = null) {
             isRunning = false
             instance?.handler?.removeCallbacksAndMessages(null)
+            onStateChanged?.invoke(false)
+            if (context != null && currentCallCount > 0) {
+                Toast.makeText(context, "Auto Redial Stopped! ($currentCallCount Calls Made)", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    var callState = 0 // 0: Idle, 1: Starting, 2: Active, 3: Ending
+    var callState = 0 
     var timeInState1 = 0
 
     override fun onServiceConnected() {
@@ -51,15 +58,17 @@ class WhatsAppRedialService : AccessibilityService() {
 
     fun initiateNextCall(context: Context) {
         if (!isRunning || contactDataId == -1L) return
+        
         if (currentCallCount >= maxCalls) {
-            isRunning = false
-            Toast.makeText(context, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+            stopRedial(context)
             return
         }
 
         currentCallCount++
         callState = 1
         timeInState1 = 0
+        
+        Toast.makeText(context, "Dialing Call $currentCallCount of $maxCalls", Toast.LENGTH_SHORT).show()
         
         try {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
@@ -72,7 +81,6 @@ class WhatsAppRedialService : AccessibilityService() {
             
             context.startActivity(intent)
 
-            // කෝල් එක load වීමට තත්පර 2ක් ලබා දී System Audio පරීක්ෂාව ආරම්භ කිරීම
             handler.removeCallbacks(checkCallRunnable)
             handler.removeCallbacks(nextCallRunnable)
             handler.postDelayed(checkCallRunnable, 2000L)
@@ -84,7 +92,7 @@ class WhatsAppRedialService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-            isRunning = false
+            stopRedial(context)
         }
     }
 
@@ -96,8 +104,7 @@ class WhatsAppRedialService : AccessibilityService() {
                     initiateNextCall(applicationContext)
                 }, intervalSeconds * 1000L)
             } else if (currentCallCount >= maxCalls) {
-                isRunning = false
-                Toast.makeText(applicationContext, "Auto Redial Completed", Toast.LENGTH_LONG).show()
+                stopRedial(applicationContext)
             }
         }
     }
@@ -105,12 +112,13 @@ class WhatsAppRedialService : AccessibilityService() {
     private val checkCallRunnable = object : Runnable {
         override fun run() {
             if (!isRunning) return
+            if (currentCallCount > maxCalls) {
+                stopRedial(applicationContext)
+                return
+            }
 
-            // 1. Android System එකෙන් සෘජුවම කෝල් එකක් තිබේදැයි බැලීම (තිරයට වඩා 1000% ක් නිවැරදිය)
             val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val isAudioActive = am.mode == AudioManager.MODE_IN_COMMUNICATION || am.mode == AudioManager.MODE_IN_CALL
-
-            // 2. තිරයේ බටන් වලින්ද අතිරේකව බැලීම
             val rootNode = rootInActiveWindow
             val isUIActive = hasEndCallUI(rootNode)
 
@@ -118,29 +126,28 @@ class WhatsAppRedialService : AccessibilityService() {
 
             if (callState == 1) {
                 if (isCallRunning) {
-                    callState = 2 // කෝල් එක සාර්ථකව සම්බන්ධ වී ඇත
+                    callState = 2 
                     timeInState1 = 0
                 } else {
                     timeInState1++
-                    if (timeInState1 >= 10) { // තත්පර 10ක් ගිහින් කෝල් එක වැදුනේ නැත්නම් ඊළඟ එකට යන්න
+                    if (timeInState1 >= 10) { 
                         callState = 3
                         handler.postDelayed(nextCallRunnable, 0L)
                     }
                 }
             } else if (callState == 2) {
                 if (!isCallRunning) {
-                    callState = 3 // කෝල් එක කට් වී ඇත
-                    handler.postDelayed(nextCallRunnable, 2500L) // තහවුරු කරගැනීමට තත්පර 2.5ක Debounce එකක්
+                    callState = 3 
+                    handler.postDelayed(nextCallRunnable, 2500L)
                 }
             } else if (callState == 3) {
                 if (isCallRunning) {
-                    // False alarm එකක් නම් ආයෙත් කෝල් එකට මාරු වන්න
                     callState = 2
                     handler.removeCallbacks(nextCallRunnable)
                 }
             }
 
-            handler.postDelayed(this, 1000L) // සෑම තත්පරයකට වරක්ම තත්ත්වය පරීක්ෂා කිරීම
+            handler.postDelayed(this, 1000L) 
         }
     }
 
