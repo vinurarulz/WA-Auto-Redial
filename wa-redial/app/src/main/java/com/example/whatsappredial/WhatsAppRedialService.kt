@@ -4,9 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.provider.ContactsContract
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -31,7 +31,6 @@ class WhatsAppRedialService : AccessibilityService() {
             currentCallCount = 0
             isRunning = true
             instance?.callState = 0
-            instance?.isWaitingForNextCall = false
             instance?.initiateNextCall(context)
         }
 
@@ -42,8 +41,8 @@ class WhatsAppRedialService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    var callState = 0 
-    var isWaitingForNextCall = false
+    var callState = 0 // 0: Idle, 1: Starting, 2: Active, 3: Ending
+    var timeInState1 = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -59,7 +58,9 @@ class WhatsAppRedialService : AccessibilityService() {
         }
 
         currentCallCount++
-        callState = 1 
+        callState = 1
+        timeInState1 = 0
+        
         try {
             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, contactDataId)
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -70,6 +71,11 @@ class WhatsAppRedialService : AccessibilityService() {
             }
             
             context.startActivity(intent)
+
+            // කෝල් එක load වීමට තත්පර 2ක් ලබා දී System Audio පරීක්ෂාව ආරම්භ කිරීම
+            handler.removeCallbacks(checkCallRunnable)
+            handler.removeCallbacks(nextCallRunnable)
+            handler.postDelayed(checkCallRunnable, 2000L)
 
             if (limitDuration) {
                 handler.postDelayed({
@@ -83,9 +89,8 @@ class WhatsAppRedialService : AccessibilityService() {
     }
 
     private val nextCallRunnable = Runnable {
-        if (callState == 2 && isWaitingForNextCall) {
+        if (callState == 3) {
             callState = 0
-            isWaitingForNextCall = false
             if (isRunning && currentCallCount < maxCalls) {
                 handler.postDelayed({
                     initiateNextCall(applicationContext)
@@ -97,41 +102,74 @@ class WhatsAppRedialService : AccessibilityService() {
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!isRunning || event == null) return
-        val rootNode = rootInActiveWindow
+    private val checkCallRunnable = object : Runnable {
+        override fun run() {
+            if (!isRunning) return
 
-        clickCallConfirmationIfPresent(rootNode)
+            // 1. Android System එකෙන් සෘජුවම කෝල් එකක් තිබේදැයි බැලීම (තිරයට වඩා 1000% ක් නිවැරදිය)
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val isAudioActive = am.mode == AudioManager.MODE_IN_COMMUNICATION || am.mode == AudioManager.MODE_IN_CALL
 
-        val endButtons = rootNode?.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
-        val endByText = rootNode?.findAccessibilityNodeInfosByText("End call")
-        val isCallUIActive = (endButtons?.isNotEmpty() == true) || (endByText?.isNotEmpty() == true)
+            // 2. තිරයේ බටන් වලින්ද අතිරේකව බැලීම
+            val rootNode = rootInActiveWindow
+            val isUIActive = hasEndCallUI(rootNode)
 
-        if (callState == 1 && isCallUIActive) {
-            callState = 2
-            isWaitingForNextCall = false
-            handler.removeCallbacks(nextCallRunnable)
-        } else if (callState == 2) {
-            if (isCallUIActive) {
-                isWaitingForNextCall = false
-                handler.removeCallbacks(nextCallRunnable)
-            } else {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                if (pm.isInteractive) {
-                    if (!isWaitingForNextCall) {
-                        isWaitingForNextCall = true
-                        handler.postDelayed(nextCallRunnable, 2500L)
-                    }
+            val isCallRunning = isAudioActive || isUIActive
+
+            if (callState == 1) {
+                if (isCallRunning) {
+                    callState = 2 // කෝල් එක සාර්ථකව සම්බන්ධ වී ඇත
+                    timeInState1 = 0
                 } else {
-                    isWaitingForNextCall = false
+                    timeInState1++
+                    if (timeInState1 >= 10) { // තත්පර 10ක් ගිහින් කෝල් එක වැදුනේ නැත්නම් ඊළඟ එකට යන්න
+                        callState = 3
+                        handler.postDelayed(nextCallRunnable, 0L)
+                    }
+                }
+            } else if (callState == 2) {
+                if (!isCallRunning) {
+                    callState = 3 // කෝල් එක කට් වී ඇත
+                    handler.postDelayed(nextCallRunnable, 2500L) // තහවුරු කරගැනීමට තත්පර 2.5ක Debounce එකක්
+                }
+            } else if (callState == 3) {
+                if (isCallRunning) {
+                    // False alarm එකක් නම් ආයෙත් කෝල් එකට මාරු වන්න
+                    callState = 2
                     handler.removeCallbacks(nextCallRunnable)
                 }
             }
+
+            handler.postDelayed(this, 1000L) // සෑම තත්පරයකට වරක්ම තත්ත්වය පරීක්ෂා කිරීම
         }
     }
 
-    private fun clickCallConfirmationIfPresent(node: AccessibilityNodeInfo?) {
-        if (node == null) return
+    private fun hasEndCallUI(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        val ends = node.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
+        if (ends != null && ends.isNotEmpty()) return true
+        return searchForEndCallText(node)
+    }
+
+    private fun searchForEndCallText(node: AccessibilityNodeInfo): Boolean {
+        if (node.text?.toString()?.contains("End call", true) == true) return true
+        if (node.contentDescription?.toString()?.contains("End call", true) == true) return true
+        if (node.contentDescription?.toString()?.contains("Decline", true) == true) return true
+        
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            if (searchForEndCallText(child)) return true
+        }
+        return false
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!isRunning || event == null) return
+        val rootNode = rootInActiveWindow ?: return
+        clickCallConfirmationIfPresent(rootNode)
+    }
+
+    private fun clickCallConfirmationIfPresent(node: AccessibilityNodeInfo) {
         val callNodes = node.findAccessibilityNodeInfosByText("Call")
         for (item in callNodes) {
             if (item.isClickable && item.className?.contains("Button") == true) {
