@@ -87,7 +87,6 @@ class WhatsAppRedialService : AccessibilityService() {
             callState = 0
             isWaitingForNextCall = false
             if (isRunning && currentCallCount < maxCalls) {
-                // ලබා දී ඇති Interval එක මෙහිදී ක්‍රියාත්මක වේ
                 handler.postDelayed({
                     initiateNextCall(applicationContext)
                 }, intervalSeconds * 1000L)
@@ -114,20 +113,16 @@ class WhatsAppRedialService : AccessibilityService() {
             handler.removeCallbacks(nextCallRunnable)
         } else if (callState == 2) {
             if (isCallUIActive) {
-                // කෝල් එක තවමත් සක්‍රීයව පවතී
                 isWaitingForNextCall = false
                 handler.removeCallbacks(nextCallRunnable)
             } else {
-                // තිරය නිවී ඇත්දැයි බැලීම (Proximity sensor logic එක මගින් කෝල් එකක් අතරමැදදී කට් වීම වළක්වයි)
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 if (pm.isInteractive) {
                     if (!isWaitingForNextCall) {
                         isWaitingForNextCall = true
-                        // UI එකේ ලැග් වීම් නිසා ඇතිවන දෝෂ වළක්වා ගැනීමට තත්පර 2.5ක් රැඳී සිටීම
                         handler.postDelayed(nextCallRunnable, 2500L)
                     }
                 } else {
-                    // තිරය නිවී ඇත්නම්, ඉන් අදහස් වන්නේ කෝල් එක දිගටම යන බවයි (දුරකථනය කනට තබාගෙන සිටින විට)
                     isWaitingForNextCall = false
                     handler.removeCallbacks(nextCallRunnable)
                 }
