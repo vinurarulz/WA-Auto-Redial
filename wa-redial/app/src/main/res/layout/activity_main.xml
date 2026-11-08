@@ -3,7 +3,7 @@
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
 
-        <TextView android:layout_width="match_parent" android:layout_height="56dp" android:background="#6A4C9C" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="Auto Redial (WhatsApp)" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold" />
+        <TextView android:layout_width="match_parent" android:layout_height="56dp" android:background="#6A4C9C" android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="WhatsApp Auto Redial" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold" />
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="8dp" android:background="#2C2C2E" android:orientation="vertical" android:padding="16dp">
 
