@@ -25,6 +25,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // ඇප් එක ඇතුළේ Action Bar එකේ Title එක මෙතනින් සකස් කර ඇත
+        supportActionBar?.title = "WhatsApp Auto Redial"
+
         val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
         val btnPickContact = findViewById<Button>(R.id.btnPickContact)
         btnStartStop = findViewById(R.id.btnStartStop)
