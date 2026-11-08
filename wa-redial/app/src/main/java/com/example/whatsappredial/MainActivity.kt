@@ -25,7 +25,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // ඇප් එක ඇතුළේ Title එක සකස් කිරීම
+        // 🔴 මේ කේතයෙන් තමයි ඇප් එක ඇතුළට ගියාම උඩින් පේන නම වෙනස් වෙන්නේ
+        this.setTitle("WhatsApp Auto Redial")
         supportActionBar?.title = "WhatsApp Auto Redial"
 
         val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
