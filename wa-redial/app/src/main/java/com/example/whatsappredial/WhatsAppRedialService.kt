@@ -7,6 +7,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -119,10 +120,14 @@ class WhatsAppRedialService : AccessibilityService() {
 
             val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val isAudioActive = am.mode == AudioManager.MODE_IN_COMMUNICATION || am.mode == AudioManager.MODE_IN_CALL
-            val rootNode = rootInActiveWindow
-            val isUIActive = hasEndCallUI(rootNode)
+            
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val isScreenOff = !pm.isInteractive
 
-            val isCallRunning = isAudioActive || isUIActive
+            val rootNode = rootInActiveWindow
+            val isUIActive = isWhatsAppCallUIActive(rootNode)
+
+            val isCallRunning = isAudioActive || isScreenOff || isUIActive
 
             if (callState == 1) {
                 if (isCallRunning) {
@@ -130,7 +135,7 @@ class WhatsAppRedialService : AccessibilityService() {
                     timeInState1 = 0
                 } else {
                     timeInState1++
-                    if (timeInState1 >= 10) { 
+                    if (timeInState1 >= 15) { 
                         callState = 3
                         handler.postDelayed(nextCallRunnable, 0L)
                     }
@@ -138,7 +143,7 @@ class WhatsAppRedialService : AccessibilityService() {
             } else if (callState == 2) {
                 if (!isCallRunning) {
                     callState = 3 
-                    handler.postDelayed(nextCallRunnable, 2500L)
+                    handler.postDelayed(nextCallRunnable, 4000L)
                 }
             } else if (callState == 3) {
                 if (isCallRunning) {
@@ -151,40 +156,34 @@ class WhatsAppRedialService : AccessibilityService() {
         }
     }
 
-    private fun hasEndCallUI(node: AccessibilityNodeInfo?): Boolean {
+    private fun isWhatsAppCallUIActive(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
         val ends = node.findAccessibilityNodeInfosByViewId("com.whatsapp:id/end_call_button")
         if (ends != null && ends.isNotEmpty()) return true
-        return searchForEndCallText(node)
+        return searchForActiveCallText(node)
     }
 
-    private fun searchForEndCallText(node: AccessibilityNodeInfo): Boolean {
-        if (node.text?.toString()?.contains("End call", true) == true) return true
-        if (node.contentDescription?.toString()?.contains("End call", true) == true) return true
-        if (node.contentDescription?.toString()?.contains("Decline", true) == true) return true
+    private fun searchForActiveCallText(node: AccessibilityNodeInfo): Boolean {
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
         
+        if (text.contains("end call") || desc.contains("end call")) return true
+        if (desc.contains("decline")) return true
+        if (text.contains("ringing") || desc.contains("ringing")) return true
+        if (text.contains("calling") || desc.contains("calling")) return true
+        if (text.contains("ongoing call") || desc.contains("ongoing call")) return true
+        if (text.contains("return to call") || desc.contains("return to call")) return true
+        if (text.contains("නාද වේ") || desc.contains("නාද වේ")) return true
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            if (searchForEndCallText(child)) return true
+            if (searchForActiveCallText(child)) return true
         }
         return false
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!isRunning || event == null) return
-        val rootNode = rootInActiveWindow ?: return
-        clickCallConfirmationIfPresent(rootNode)
-    }
-
-    private fun clickCallConfirmationIfPresent(node: AccessibilityNodeInfo) {
-        val callNodes = node.findAccessibilityNodeInfosByText("Call")
-        for (item in callNodes) {
-            if (item.isClickable && item.className?.contains("Button") == true) {
-                item.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                break
-            }
-        }
-    }
+    // UI Click කරන කොටස සම්පූර්ණයෙන්ම ඉවත් කර ඇත
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
     private fun endCurrentWhatsAppCall() {
         val rootNode = rootInActiveWindow ?: return
