@@ -24,12 +24,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        // 🔴 මේ කේතයෙන් තමයි ඇප් එක ඇතුළට ගියාම උඩින් පේන නම වෙනස් වෙන්නේ
-        this.setTitle("WhatsApp Auto Redial")
+        this.title = "WhatsApp Auto Redial"
         supportActionBar?.title = "WhatsApp Auto Redial"
 
-        val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
+        // 🔴 මේ කේතයෙන් තමයි ඇප් එක ඇතුළට ගියාම උඩින් පේන නම වෙනස් වෙන්නේ
+                        val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
         val btnPickContact = findViewById<Button>(R.id.btnPickContact)
         btnStartStop = findViewById(R.id.btnStartStop)
         val switchCallDuration = findViewById<Switch>(R.id.switchCallDuration)
