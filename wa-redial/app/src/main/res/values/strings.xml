@@ -1,6 +1,4 @@
 <resources>
-    <!-- Launcher එකේ පෙනෙන නම -->
     <string name="app_name">WA Auto Redial</string>
-    <!-- App එක ඇතුළේ (Action Bar) පෙනෙන නම -->
-    <string name="activity_name">WhatsApp Auto Redial</string>
+    <string name="title_activity_main">WhatsApp Auto Redial</string>
 </resources>
