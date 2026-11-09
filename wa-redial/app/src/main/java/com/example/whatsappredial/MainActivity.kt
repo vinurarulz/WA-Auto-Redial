@@ -1,9 +1,11 @@
 package com.example.whatsappredial
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.text.Editable
@@ -18,17 +20,21 @@ data class WhatsAppContact(val dataId: Long, val name: String, val number: Strin
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        var wakeLock: PowerManager.WakeLock? = null
+    }
+
     private var selectedContact: WhatsAppContact? = null
     private lateinit var btnStartStop: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
         this.title = "WhatsApp Auto Redial"
         supportActionBar?.title = "WhatsApp Auto Redial"
 
-        // 🔴 මේ කේතයෙන් තමයි ඇප් එක ඇතුළට ගියාම උඩින් පේන නම වෙනස් වෙන්නේ
-                        val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
+        val tvSelectedContact = findViewById<TextView>(R.id.tvSelectedContact)
         val btnPickContact = findViewById<Button>(R.id.btnPickContact)
         btnStartStop = findViewById(R.id.btnStartStop)
         val switchCallDuration = findViewById<Switch>(R.id.switchCallDuration)
@@ -82,6 +88,19 @@ class MainActivity : AppCompatActivity() {
                     startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     return@setOnClickListener
                 }
+                
+                // ෆෝන් එකේ ස්ක්‍රීන් එක නිවෙන එක වැළැක්වීමේ කේතය (WakeLock)
+                try {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    wakeLock = pm.newWakeLock(
+                        PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "WARedial::KeepScreenAwake"
+                    )
+                    wakeLock?.acquire()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                
                 btnStartStop.text = "STOP"
                 WhatsAppRedialService.startRedial(
                     context = this,
@@ -96,6 +115,16 @@ class MainActivity : AppCompatActivity() {
         WhatsAppRedialService.onStateChanged = { isRunning ->
             runOnUiThread {
                 btnStartStop.text = if (isRunning) "STOP" else "START"
+                
+                // ඇප් එකේ වැඩ ඉවර වුණ ගමන් ෆෝන් එක සාමාන්‍ය විදිහට නිවෙන්න දීම
+                if (!isRunning) {
+                    try {
+                        wakeLock?.takeIf { it.isHeld }?.release()
+                        wakeLock = null
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
     }
